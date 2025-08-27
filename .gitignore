@@ -1,0 +1,64 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+Notebooks/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Cache / logs
+*.log
+*.out
+*.err
+*.tmp
+*.pickle
+*.pkl
+*.joblib
+*.cache/
+.cache/
+logs/
+wandb/
+mlruns/
+
+# ---- Machine Learning / Data ----
+# Datasets (adjust if you want to track small samples)
+Songs/
+*.wav
+*.mp3
+*.flac
+*.aiff
+*.ogg
+*.m4a
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.tflite
+*.onnx
+*.pb
+
+# ---- OS / IDE ----
+# macOS
+.DS_Store
+.AppleDouble
+._*
+.vscode/
+.history/
+*.code-workspace
