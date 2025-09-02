@@ -1,4 +1,4 @@
-name: ml_audio
+name: process_audio
 channels:
   - conda-forge
   - defaults
@@ -36,3 +36,4 @@ dependencies:
       - joblib==1.5.2
       - threadpoolctl==3.6.0
       - requests==2.32.5
+      - pyrubberband==0.4.0
