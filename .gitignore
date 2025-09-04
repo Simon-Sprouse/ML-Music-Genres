@@ -35,8 +35,9 @@ logs/
 wandb/
 mlruns/
 
-# ---- Machine Learning / Data ----
+# ---- Machine Learning / Data / Results ----
 # Datasets (adjust if you want to track small samples)
+Results/
 Songs/
 *.wav
 *.mp3
