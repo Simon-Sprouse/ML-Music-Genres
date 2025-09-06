@@ -1,3 +1,7 @@
+import warnings
+warnings.filterwarnings("ignore")
+
+
 import soundfile as sf
 import time
 import os
@@ -5,8 +9,14 @@ import librosa
 import numpy as np
 import madmom
 from madmom.features.key import CNNKeyRecognitionProcessor, key_prediction_to_label
+from madmom.features.downbeats import RNNDownBeatProcessor, DBNDownBeatTrackingProcessor
+
 from PIL import Image
 import matplotlib.pyplot as plt
+
+
+
+
 
 
 
@@ -304,53 +314,101 @@ def downloadImagesArray(imgs, prefix, folder):
         pil_img.save(f"{folder}/{prefix}_{i}.png")
 
 
+def find_audio_files(root_dir, extensions=(".wav", ".mp3")):
+    """
+    Recursively search a directory for audio files.
+
+    Parameters
+    ----------
+    root_dir : str
+        The top-level directory to search.
+    extensions : tuple of str, optional
+        File extensions to look for (default: (".wav", ".mp3")).
+
+    Returns
+    -------
+    list of str
+        Full file paths for all matching audio files.
+    """
+    audio_files = []
+    for dirpath, _, filenames in os.walk(root_dir):
+        for f in filenames:
+            if f.lower().endswith(extensions):
+                audio_files.append(os.path.join(dirpath, f))
+    return audio_files
 
 
 
+def processFile(filename):
+    """
+    Process a single audio file using globally instantiated ML models.
+    """
+
+    # Use global models instead of re-instantiating them every time
+    global key_proc, downbeat_rnn, downbeat_tracker
+
+    # Extract title and load audio
+    song_title = filename.rsplit('/', 1)[-1][:-4]
+    y, sr = librosa.load(filename, sr=44100, mono=True)
+
+    # Downbeat detection (reuse global RNN + tracker)
+    downbeat_proc = downbeat_rnn(filename)
+    beats = downbeat_tracker(downbeat_proc)
+    downbeat_times = beats[beats[:, 1] == 1, 0]
+
+    # Key recognition (reuse global CNN model)
+    prediction = key_proc(filename)
+    key = key_prediction_to_label(prediction)
+
+
+    ## Settings for data generation
+    fixed_window_n_seconds = 3.0
+
+
+    fixed_spectros = make_fixed_size_spectrogram(y, sr, n_seconds=fixed_window_n_seconds, width=128, n_mels=128)
+    downbeat_spectros = make_downbeat_aligned_spectrogram(y, sr, downbeat_times, time_bins_per_downbeat=128, downbeats_in_image=1)
+
+    fixed_chromas = make_fixed_size_chromagrams(y, sr, n_seconds=fixed_window_n_seconds, width=128, hop_length=512)
+    downbeat_chromas = make_downbeat_aligned_chromagrams(y, sr, downbeat_times, time_bins_per_downbeat=128, downbeats_in_image=1)
+    rotated_fixed_chromas = [rotate_chroma_to_C_major(chroma_image, key) for chroma_image in fixed_chromas]
+    rotated_downbeat_chromas = [rotate_chroma_to_C_major(chroma_image, key) for chroma_image in downbeat_chromas]
+
+
+    ## Save results
+    output_folder = "../Results/Dev/" + song_title + "/"
+    downloadImagesArray(fixed_spectros, "unaligned_spectrogram", output_folder)
+    downloadImagesArray(downbeat_spectros, "aligned_spectrogram", output_folder)
+    downloadImagesArray(fixed_chromas, "unaligned_chromagram", output_folder)
+    downloadImagesArray(downbeat_chromas, "aligned_chromagram", output_folder)
+    downloadImagesArray(rotated_fixed_chromas, "rotated_unaligned_chromagram", output_folder)
+    downloadImagesArray(rotated_downbeat_chromas, "rotated_aligned_chromagram", output_folder)
+    
 
 
 if __name__ == "__main__":
     
 
-
     start = time.perf_counter()
-
+    last_lap = start
     
-
-    filename = "../Songs/bob_marley--redemption_song.mp3"
-    song_title = filename.rsplit('/', 1)[-1][:-4]
-    y, sr = librosa.load(filename, sr=None)
-
-
-    downbeat_proc = madmom.features.downbeats.RNNDownBeatProcessor()(filename)
-    beats = madmom.features.downbeats.DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)(downbeat_proc)
-    beat_times = beats[:,0]
-    downbeat_times = beats[beats[:,1] == 1, 0]
-
-
+    
+    root_dir = "../Songs/gtzan/jazz"
+    files = find_audio_files(root_dir)
+    
+    # --- instantiate heavy ML models once ---
     key_proc = CNNKeyRecognitionProcessor()
-    prediction = key_proc(filename)
-    key = key_prediction_to_label(prediction)
-
-
-    fixed_spectros = make_fixed_size_spectrogram(y, sr, n_seconds=3.0, width=128, n_mels=128)
-    downbeat_spectros = make_downbeat_aligned_spectrogram(y, sr, downbeat_times, time_bins_per_downbeat=128, downbeats_in_image=1)
-
-    fixed_chromas = make_fixed_size_chromagrams(y, sr, n_seconds=3.0, width=128, hop_length=512)
-    downbeat_chromas = make_downbeat_aligned_chromagrams(y, sr, downbeat_times, time_bins_per_downbeat=128, downbeats_in_image=1)
-    rotated_fixed_chromas = [rotate_chroma_to_C_major(chroma_image, key) for chroma_image in fixed_chromas]
-    rotated_downbeat_chromas = [rotate_chroma_to_C_major(chroma_image, key) for chroma_image in downbeat_chromas]
-
-    output_folder = "../Results/" + song_title + "/"
-
-    downloadImagesArray(fixed_spectros, "unaligned_spectrogram", output_folder)
-    downloadImagesArray(downbeat_spectros, "aligned_spectrogram", output_folder)
-    downloadImagesArray(fixed_chromas, "unaligned_chromagram", output_folder)
-    downloadImagesArray(downbeat_chromas, "aligned_chromagram", output_folder)
-    downloadImagesArray(fixed_chromas, "rotated_unaligned_chromagram", output_folder)
-    downloadImagesArray(downbeat_chromas, "rotated_aligned_chromagram", output_folder)
+    downbeat_rnn = RNNDownBeatProcessor()  # reuse this
+    downbeat_tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)
     
-    end = time.perf_counter()
-    print(f"Elapsed time: {end - start:.6f} seconds")
+    n = len(files)
+    for i, filename in enumerate(files):
+        print(f"processing file ({i+1} of {n}): ", filename)
+        processFile(filename)
+        
+        current = time.perf_counter()
+        print(f"Elapsed time: {current - last_lap:.6f} seconds")
+        last_lap = time.perf_counter()
 
 
+    current = time.perf_counter()
+    print(f"Total execution time for main: {current - start:.6f} seconds")
