@@ -67,10 +67,10 @@ def checkDataExists(folder):
 
     # only allow .png files
     png_files = [f for f in files if f.endswith(".png")]
-    if len(png_files) != len(files):
-        return False
-    if not png_files:
-        return False
+    # if len(png_files) != len(files):
+    #     return False
+    # if not png_files:
+    #     return False
 
     # group by prefix
     prefix_to_indexes = {prefix: [] for prefix in required_prefixes}
