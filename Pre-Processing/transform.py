@@ -1,0 +1,286 @@
+import librosa
+import numpy as np
+
+
+def make_fixed_size_spectrogram(y, sr, n_seconds=3.0, width=128, n_mels=128, hop_length=512):
+    """
+    Create fixed-size mel spectrogram images (not beat aligned) using
+    a single spectrogram computation + interpolation.
+    
+    Parameters
+    ----------
+    y : np.ndarray
+        Audio signal.
+    sr : int
+        Sample rate.
+    n_seconds : float
+        Duration (in seconds) of each spectrogram window.
+    width : int
+        Number of time bins (pixels) in the spectrogram.
+    n_mels : int
+        Number of mel frequency bins.
+    hop_length : int
+        Hop length used to compute the base spectrogram.
+    
+    Returns
+    -------
+    specs : list of np.ndarray
+        Each spectrogram of shape (n_mels, width).
+    """
+    # Use fixed hop_length (512 by default)
+    n_fft = hop_length * 4
+
+    # Compute mel spectrogram once
+    mel = librosa.feature.melspectrogram(y=y, sr=sr,
+                                         n_fft=n_fft,
+                                         hop_length=hop_length,
+                                         n_mels=n_mels)
+    mel_db = librosa.power_to_db(mel, ref=np.max)
+
+    # Window length in frames
+    window_length_frames = int(round(n_seconds * sr / hop_length))
+
+    specs = []
+    for start in range(0, mel_db.shape[1] - window_length_frames + 1, window_length_frames):
+        end = start + window_length_frames
+        segment = mel_db[:, start:end]
+
+        if segment.shape[1] < 2:
+            continue
+
+        # Interpolate to fixed width
+        x_old = np.linspace(0, 1, segment.shape[1])
+        x_new = np.linspace(0, 1, width)
+        segment_resampled = np.vstack([
+            np.interp(x_new, x_old, row) for row in segment
+        ])
+
+        specs.append(segment_resampled)
+
+    return specs
+
+
+
+def make_fixed_size_chromagrams(y, sr, n_seconds=3.0, width=128, hop_length=512):
+    """
+    Create fixed-size chromagram images (not beat aligned) using
+    a single chromagram computation + interpolation.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Audio signal.
+    sr : int
+        Sampling rate.
+    n_seconds : float
+        Duration (in seconds) of each window.
+    width : int
+        Number of chroma frames allocated per window (output width).
+    hop_length : int
+        Hop length used to compute the base chromagram.
+
+    Returns
+    -------
+    images : list of np.ndarray
+        Each image has shape (12, width).
+    """
+    # Compute base chromagram once
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop_length)
+
+    # Get frame times
+    frame_times = librosa.frames_to_time(
+        np.arange(chroma.shape[1]), sr=sr, hop_length=hop_length
+    )
+
+    # Window length in frames
+    window_length_frames = int(round(n_seconds * sr / hop_length))
+
+    images = []
+    for start in range(0, chroma.shape[1] - window_length_frames + 1, window_length_frames):
+        end = start + window_length_frames
+        segment = chroma[:, start:end]
+
+        if segment.shape[1] < 2:
+            continue
+
+        # Resample to fixed width
+        x_old = np.linspace(0, 1, segment.shape[1])
+        x_new = np.linspace(0, 1, width)
+        segment_resampled = np.vstack([
+            np.interp(x_new, x_old, row) for row in segment
+        ])
+
+        images.append(segment_resampled)
+
+    return images
+
+
+
+
+
+def make_downbeat_aligned_spectrogram(y, sr, downbeat_times, time_bins_per_downbeat=32, downbeats_in_image=4):
+    """
+    Create log-mel spectrogram images aligned to downbeats.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Audio signal.
+    sr : int
+        Sampling rate.
+    downbeat_times : list of float
+        Times (in seconds) of detected downbeats.
+    time_bins_per_downbeat : int
+        Number of spectrogram frames allocated between two downbeats.
+    downbeats_in_image : int
+        How many downbeats per image.
+
+    Returns
+    -------
+    images : list of np.ndarray
+        Each image has shape (128, time_bins_per_downbeat * downbeats_in_image).
+    """
+    # Compute mel spectrogram
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
+    S_db = librosa.power_to_db(S, ref=np.max)
+
+    # Map downbeat times -> spectrogram frames
+    hop_length = 512
+    frame_times = librosa.frames_to_time(np.arange(S_db.shape[1]), sr=sr, hop_length=hop_length)
+    downbeat_frames = np.searchsorted(frame_times, downbeat_times)
+
+    segments = []
+    for i in range(len(downbeat_frames) - 1):
+        start, end = downbeat_frames[i], downbeat_frames[i + 1]
+        segment = S_db[:, start:end]
+
+        if segment.shape[1] < 2:
+            continue
+
+        # Resample along time axis to exactly time_bins_per_downbeat
+        x_old = np.linspace(0, 1, segment.shape[1])
+        x_new = np.linspace(0, 1, time_bins_per_downbeat)
+        segment_resampled = np.vstack([
+            np.interp(x_new, x_old, row) for row in segment
+        ])
+
+        segments.append(segment_resampled)
+
+    # Group consecutive segments into images
+    images = []
+    for i in range(0, len(segments) - downbeats_in_image + 1, downbeats_in_image):
+        image = np.hstack(segments[i:i + downbeats_in_image])
+        images.append(image)
+
+    return images
+
+
+
+def make_downbeat_aligned_chromagrams(y, sr, downbeat_times, time_bins_per_downbeat=128, downbeats_in_image=1):
+    """
+    Create chromagram images aligned to downbeats.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Audio signal.
+    sr : int
+        Sampling rate.
+    downbeat_times : list of float
+        Times (in seconds) of detected downbeats.
+    time_bins_per_downbeat : int
+        Number of chroma frames allocated between two downbeats.
+    downbeats_in_image : int
+        How many downbeats per image.
+
+    Returns
+    -------
+    images : list of np.ndarray
+        Each image has shape (12, time_bins_per_downbeat * downbeats_in_image).
+    """
+    # Compute chromagram
+    hop_length = 512
+    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop_length)
+
+    # Map downbeat times -> chroma frames
+    frame_times = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr, hop_length=hop_length)
+    downbeat_frames = np.searchsorted(frame_times, downbeat_times)
+
+    segments = []
+    for i in range(len(downbeat_frames) - 1):
+        start, end = downbeat_frames[i], downbeat_frames[i + 1]
+        segment = chroma[:, start:end]
+
+        if segment.shape[1] < 2:
+            continue
+
+        # Resample along time axis to exactly time_bins_per_downbeat
+        x_old = np.linspace(0, 1, segment.shape[1])
+        x_new = np.linspace(0, 1, time_bins_per_downbeat)
+        segment_resampled = np.vstack([
+            np.interp(x_new, x_old, row) for row in segment
+        ])
+
+        segments.append(segment_resampled)
+
+    # Group consecutive segments into images
+    images = []
+    for i in range(0, len(segments) - downbeats_in_image + 1, downbeats_in_image):
+        image = np.hstack(segments[i:i + downbeats_in_image])
+        images.append(image)
+
+    return images
+
+
+
+
+
+def rotate_chroma_to_C_major(chroma_image, key_str):
+    """
+    Rotate a chromagram so that the song is aligned to C major (or A minor).
+
+    Parameters
+    ----------
+    chroma_image : np.ndarray
+        A chromagram image with shape (12, width).
+    key_str : str
+        Detected key, e.g. 'G major' or 'A minor'.
+
+    Returns
+    -------
+    rotated : np.ndarray
+        Chromagram rotated so tonic aligns with C major.
+    """
+    
+    # Map note names to chroma indices
+    NOTE_TO_INDEX = {
+        'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3,
+        'E': 4, 'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8,
+        'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+    }
+
+    # Parse key
+    parts = key_str.strip().split()
+    if len(parts) != 2:
+        raise ValueError(f"Unexpected key format: {key_str}")
+    tonic, mode = parts[0], parts[1].lower()
+
+    if tonic not in NOTE_TO_INDEX:
+        raise ValueError(f"Unrecognized tonic: {tonic}")
+
+    tonic_index = NOTE_TO_INDEX[tonic]
+
+    if mode == "major":
+        offset = tonic_index
+    elif mode == "minor":
+        # shift to relative major (3 semitones up)
+        offset = (tonic_index + 3) % 12
+    else:
+        raise ValueError(f"Mode must be 'major' or 'minor', got: {mode}")
+
+    # Rotate so tonic maps to C (index 0)
+    rotated = np.roll(chroma_image, -offset, axis=0)
+
+    return rotated
+
+
