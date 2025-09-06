@@ -339,7 +339,7 @@ def find_audio_files(root_dir, extensions=(".wav", ".mp3")):
 
 
 
-def processFile(filename):
+def processFile(filename, output_folder):
     """
     Process a single audio file using globally instantiated ML models.
     """
@@ -348,7 +348,7 @@ def processFile(filename):
     global key_proc, downbeat_rnn, downbeat_tracker
 
     # Extract title and load audio
-    song_title = filename.rsplit('/', 1)[-1][:-4]
+    
     y, sr = librosa.load(filename, sr=44100, mono=True)
 
     # Downbeat detection (reuse global RNN + tracker)
@@ -375,7 +375,7 @@ def processFile(filename):
 
 
     ## Save results
-    output_folder = "../Results/Dev/" + song_title + "/"
+    
     downloadImagesArray(fixed_spectros, "unaligned_spectrogram", output_folder)
     downloadImagesArray(downbeat_spectros, "aligned_spectrogram", output_folder)
     downloadImagesArray(fixed_chromas, "unaligned_chromagram", output_folder)
@@ -383,27 +383,115 @@ def processFile(filename):
     downloadImagesArray(rotated_fixed_chromas, "rotated_unaligned_chromagram", output_folder)
     downloadImagesArray(rotated_downbeat_chromas, "rotated_aligned_chromagram", output_folder)
     
+    
+
+
+def checkDataExists(folder):
+    """
+    Checks if processed data exists in the given results folder.
+    Returns True if all conditions are satisfied, otherwise False.
+    """
+
+    required_prefixes = [
+        "unaligned_spectrogram",
+        "aligned_spectrogram",
+        "unaligned_chromagram",
+        "aligned_chromagram",
+        "rotated_unaligned_chromagram",
+        "rotated_aligned_chromagram"
+    ]
+
+    if not os.path.exists(folder):
+        return False
+
+    files = os.listdir(folder)
+    if not files:
+        return False
+
+    # only allow .png files
+    png_files = [f for f in files if f.endswith(".png")]
+    if len(png_files) != len(files):
+        return False
+    if not png_files:
+        return False
+
+    # group by prefix
+    prefix_to_indexes = {prefix: [] for prefix in required_prefixes}
+
+    for f in png_files:
+        try:
+            name, ext = os.path.splitext(f)
+            prefix, idx_str = name.rsplit("_", 1)
+            if prefix in prefix_to_indexes:
+                idx = int(idx_str)
+                prefix_to_indexes[prefix].append(idx)
+        except Exception:
+            return False  # bad naming pattern
+
+        # check file size > 0
+        if os.path.getsize(os.path.join(folder, f)) == 0:
+            return False
+
+    # check every required prefix has files
+    for prefix in required_prefixes:
+        indexes = prefix_to_indexes[prefix]
+        if not indexes:
+            return False
+
+        # check for missing indexes
+        max_idx = max(indexes)
+        expected = set(range(0, max_idx + 1))
+        if set(indexes) != expected:
+            return False
+
+    # store maxes
+    aligned_maxes = [
+        max(prefix_to_indexes["aligned_spectrogram"]),
+        max(prefix_to_indexes["aligned_chromagram"]),
+        max(prefix_to_indexes["rotated_aligned_chromagram"]),
+    ]
+    if len(set(aligned_maxes)) != 1:
+        return False
+
+    unaligned_maxes = [
+        max(prefix_to_indexes["unaligned_spectrogram"]),
+        max(prefix_to_indexes["unaligned_chromagram"]),
+        max(prefix_to_indexes["rotated_unaligned_chromagram"]),
+    ]
+    if len(set(unaligned_maxes)) != 1:
+        return False
+
+    return True
+
 
 
 if __name__ == "__main__":
     
-
     start = time.perf_counter()
     last_lap = start
     
-    
-    root_dir = "../Songs/gtzan/jazz"
-    files = find_audio_files(root_dir)
     
     # --- instantiate heavy ML models once ---
     key_proc = CNNKeyRecognitionProcessor()
     downbeat_rnn = RNNDownBeatProcessor()  # reuse this
     downbeat_tracker = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)
     
+    data_dir = "../Songs/gtzan/jazz"
+    files = find_audio_files(data_dir)
+    files.sort() # in place alphabetical sort
     n = len(files)
+    
+    
     for i, filename in enumerate(files):
+        
+        song_title = filename.rsplit('/', 1)[-1][:-4]
+        results_folder = "../Results/Dev/" + song_title + "/"
+        if checkDataExists(results_folder): 
+            print(f"skipping file ({i+1} of {n}): ", filename)
+            continue
+            
         print(f"processing file ({i+1} of {n}): ", filename)
-        processFile(filename)
+        processFile(filename, results_folder)
         
         current = time.perf_counter()
         print(f"Elapsed time: {current - last_lap:.6f} seconds")
