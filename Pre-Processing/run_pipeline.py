@@ -50,11 +50,22 @@ def processFile(args):
         # Downbeat detection (reuse global RNN + tracker)
         downbeat_proc = downbeat_rnn(filename)
         beats = downbeat_tracker(downbeat_proc)
-        downbeat_times = beats[beats[:, 1] == 1, 0]
+        downbeat_times = beats[beats[:,1] == 1, 0]
+        
+        # Estimate tempo from inter-beat intervals
+        beat_times = beats[:,0]
+        if len(beat_times) > 1:
+            ib_intervals = np.diff(beat_times)
+            tempo = 60.0 / np.median(ib_intervals)
+        else:
+            tempo = float('nan')
         
         # Key recognition (reuse global CNN model)
         prediction = key_proc(filename)
         key = key_prediction_to_label(prediction)
+        
+        # save metadata
+        system_io.downloadMetaData(output_folder, tempo, beat_times, downbeat_times, key)
         
         ## Settings for data generation
         fixed_window_n_seconds = 3.0

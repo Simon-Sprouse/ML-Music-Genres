@@ -1,4 +1,5 @@
 import os
+import json
 import numpy as np
 from PIL import Image
 
@@ -15,6 +16,35 @@ def downloadImagesArray(imgs, prefix, folder):
         pil_img = Image.fromarray(arr)
         pil_img.save(f"{folder}/{prefix}_{i}.png")
 
+def downloadMetaData(output_folder, tempo, beat_times, downbeat_times, key):
+    """
+    Save extracted metadata to a JSON file in the given output folder.
+    
+    Args:
+        output_folder (str): Path to the folder where metadata should be saved.
+        tempo (float): Estimated tempo in BPM.
+        beat_times (np.ndarray or list): Array of beat times in seconds.
+        downbeat_times (np.ndarray or list): Array of downbeat times in seconds.
+        key (str): Predicted musical key.
+    """
+    # Ensure output folder exists
+    os.makedirs(output_folder, exist_ok=True)
+    
+    # Build metadata dictionary
+    metadata = {
+        "tempo": float(tempo) if tempo is not None else None,
+        "key": key,
+        "beat_times": [float(bt) for bt in beat_times],
+        "downbeat_times": [float(db) for db in downbeat_times]
+    }
+    
+    # Save JSON file
+    output_path = os.path.join(output_folder, "metadata.json")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=4)
+    
+    return output_path
+    
 
 def find_audio_files(root_dir, extensions=(".wav", ".mp3")):
     """
@@ -48,6 +78,23 @@ def checkDataExists(folder):
     Checks if processed data exists in the given results folder.
     Returns True if all conditions are satisfied, otherwise False.
     """
+    
+    # --- Metadata check ---
+    metadata_path = os.path.join(folder, "metadata.json")
+    if not os.path.exists(metadata_path):
+        return False
+    if os.path.getsize(metadata_path) == 0:
+        return False
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+        # basic completeness check: required keys must exist
+        required_keys = ["tempo", "key", "beat_times", "downbeat_times"]
+        for k in required_keys:
+            if k not in metadata:
+                return False
+    except Exception:
+        return False
 
     required_prefixes = [
         "unaligned_spectrogram",
@@ -67,10 +114,7 @@ def checkDataExists(folder):
 
     # only allow .png files
     png_files = [f for f in files if f.endswith(".png")]
-    # if len(png_files) != len(files):
-    #     return False
-    # if not png_files:
-    #     return False
+
 
     # group by prefix
     prefix_to_indexes = {prefix: [] for prefix in required_prefixes}
