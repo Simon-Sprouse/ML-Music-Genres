@@ -132,6 +132,8 @@ if __name__ == "__main__":
     completed_count = 0
     failed_count = 0
     
+    total_progress = n - len(files_to_process)
+    
     with ProcessPoolExecutor(max_workers=num_workers, initializer=init_worker) as executor:
         # Submit all jobs
         future_to_args = {executor.submit(processFile, args): args for args in files_to_process}
@@ -142,15 +144,14 @@ if __name__ == "__main__":
             completed_count += 1
             
             if result['success']:
-                print(f"✓ Completed file ({result['file_index']} of {result['total_files']}): {result['filename']}")
+                print(f"✓ Completed file ({total_progress + completed_count} of {n}): {result['filename']}")
                 print(f"  Process time: {result['process_time']:.6f} seconds")
             else:
                 failed_count += 1
-                print(f"✗ Failed file ({result['file_index']} of {result['total_files']}): {result['filename']}")
+                print(f"✗ Failed file ({total_progress + completed_count} of {n}): {result['filename']}")
                 print(f"  Error: {result['error']}")
                 print(f"  Process time: {result['process_time']:.6f} seconds")
             
-            print(f"  Progress: {completed_count}/{len(files_to_process)} files completed")
             print()
     
     # Final summary
