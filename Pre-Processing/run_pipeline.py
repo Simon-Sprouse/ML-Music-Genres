@@ -110,8 +110,11 @@ def processFile(args):
 if __name__ == "__main__":
     start = time.perf_counter()
     
+    
+    data_dir = "../Songs/gtzan/"
+    results_dir = "../Results/Dev/"
+    
     # Get list of files to process
-    data_dir = "../Songs/gtzan/jazz"
     files = system_io.find_audio_files(data_dir)
     files.sort()  # in place alphabetical sort
     n = len(files)
@@ -120,7 +123,7 @@ if __name__ == "__main__":
     files_to_process = []
     for i, filename in enumerate(files):
         song_title = filename.rsplit('/', 1)[-1][:-4]
-        results_folder = "../Results/Dev/" + song_title + "/"
+        results_folder = results_dir + song_title + "/"
         
         if system_io.checkDataExists(results_folder):
             ## print(f"skipping file ({i+1} of {n}): ", filename)

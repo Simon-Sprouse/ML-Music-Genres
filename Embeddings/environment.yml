@@ -1,0 +1,18 @@
+name: cnn-embeddings
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - torchaudio
+  - jupyter
+  - ipykernel
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - pip
+  - pip:
+      - timm
