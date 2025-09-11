@@ -69,3 +69,44 @@ def runAE(filenames, model, device=None):
         embeddings.append(z.cpu())
     
     return torch.cat(embeddings, dim=0)  # (N, embedding_dim)
+
+
+
+def runVAE(filenames, model, device=None):
+    """
+    Compute embeddings for a list of image filenames using a trained ConvVAE.
+    
+    Args:
+        model: Trained ConvVAE (already on device, eval mode).
+        filenames: list of image file paths.
+        device: 'cuda' or 'cpu'. If None, inferred from model.
+    
+    Returns:
+        embeddings: torch.Tensor of shape (len(filenames), latent_dim)
+    """
+    if device is None:
+        device = next(model.parameters()).device
+
+    # --- Preprocessing ---
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),  # force 1 channel
+        transforms.ToTensor(),  # [0,1], shape (1, H, W)
+    ])
+
+    # --- Load images ---
+    imgs = []
+    for fname in filenames:
+        img = Image.open(fname).convert("L")  # grayscale
+        img = transform(img)  # (1, H, W)
+        imgs.append(img)
+
+    imgs = torch.stack(imgs)  # (N, 1, H, W)
+
+    # --- Generate embeddings ---
+    model.eval()
+    with torch.no_grad():
+        imgs = imgs.to(device)
+        _, mu, logvar = model(imgs)   # forward pass
+        embeddings = mu.cpu()         # use mean as embedding
+    
+    return embeddings  # (N, latent_dim)

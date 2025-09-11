@@ -46,17 +46,14 @@ if __name__ == "__main__":
     
     if OVERRIDE_TRAINED_MODELS: 
         
-        ## train_models.fitPCA(filenames, model_save_dir)
+        train_models.fitPCA(filenames, model_save_dir)
         
+        train_models.trainSimpleAE(train_dataloader, test_dataloader, model_save_dir)
+        train_models.trainConvAE(train_dataloader, test_dataloader, model_save_dir)
+        train_models.trainConvVAE(train_dataloader, test_dataloader, model_save_dir)
         
         
 
-        
-        train_models.trainSimpleAE(train_dataloader, test_dataloader, model_save_dir)
-        
-        
-        
-        
 
         
     pca_path=f"{model_save_dir}/pixel_pca.npz"
@@ -83,7 +80,32 @@ if __name__ == "__main__":
         ae = load_models.loadSimpleAE(ae_path)
     else:
         print("Loaded AE weights from: ", ae_path)
+        
+        
+    conv_ae_path = os.path.join(model_save_dir, "conv_autoencoder.pth")
+    conv_ae = load_models.loadConvAE(conv_ae_path)
+    if conv_ae is None:
+        print("No Conv AE found, training new weights...")
+        train_models.trainConvAE(train_dataloader, test_dataloader, model_save_dir)
+        conv_ae = load_models.loadConvAE(conv_ae_path)
+    else:
+        print("Loaded Conv AE weights from: ", conv_ae_path)
     
+        
+        
+    conv_vae_path = os.path.join(model_save_dir, "conv_variational_autoencoder.pth")
+    conv_vae = load_models.loadConvVAE(conv_vae_path)
+    if conv_vae is None:
+        print("No Conv VAE found, training new weights...")
+        train_models.trainConvVAE(train_dataloader, test_dataloader, model_save_dir)
+        conv_vae = load_models.loadConvVAE(conv_vae_path)
+    else:
+        print("Loaded Conv VAE weights from: ", conv_vae_path)
+        
+        
+        
+        
+        
         
         
     batch_filenames = filenames[:100] ## TODO implement per song batching
@@ -95,4 +117,11 @@ if __name__ == "__main__":
     ae_tensor = run_models.runAE(batch_filenames, ae)
     print("ae tensor shape: ", ae_tensor.shape)
     
+    
+    conv_ae_tensor = run_models.runAE(batch_filenames, conv_ae)
+    print("conv ae tensor shape: ", conv_ae_tensor.shape)
+    
+    
+    conv_vae_tensor = run_models.runVAE(batch_filenames, conv_vae)
+    print("conv vae tensor shape: ", conv_vae_tensor.shape)
     

@@ -50,4 +50,44 @@ def loadSimpleAE(pth_path):
         return None
 
     
+def loadConvAE(pth_path):
     
+    if pth_path is None:
+        return None
+
+    if not os.path.isfile(pth_path):
+        return None
+    
+    
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        loaded_model = model_classes.ConvAutoencoder(latent_dim=128).to(device)
+        loaded_model.load_state_dict(torch.load(pth_path, map_location=device))
+        loaded_model.eval()
+        return loaded_model
+    except Exception as e:
+        print(f"⚠️ Error loading conv autoencoder from {pth_path}: {e}")
+        return None
+
+    
+    
+    
+  
+def loadConvVAE(pth_path):
+    
+    if pth_path is None:
+        return None
+
+    if not os.path.isfile(pth_path):
+        return None
+    
+    
+    try:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        loaded_model = model_classes.ConvVAE(latent_dim=128).to(device)
+        loaded_model.load_state_dict(torch.load(pth_path, map_location=device))
+        loaded_model.eval()
+        return loaded_model
+    except Exception as e:
+        print(f"⚠️ Error loading conv VAE from {pth_path}: {e}")
+        return None

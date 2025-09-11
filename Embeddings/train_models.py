@@ -156,3 +156,112 @@ def trainSimpleAE(train_dataloader, test_dataloader, model_save_dir):
     torch.save(model.state_dict(), save_path)
     
     print("saved autoencoder at: ", save_path)
+    
+    
+    
+    
+def trainConvAE(train_dataloader, test_dataloader, model_save_dir):
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+    model = model_classes.ConvAutoencoder(latent_dim=128).to(device)
+    criterion = nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    
+    
+    print("Training Conv Autoencoder")
+    print("Model ready on", device)
+    
+    
+    n_epochs = 2
+    for epoch in range(n_epochs):
+        # --- Training phase ---
+        model.train()
+        running_loss = 0.0
+        for imgs in tqdm(train_dataloader, desc=f"Train Epoch {epoch+1}/{n_epochs}"):
+            imgs = imgs.to(device)
+            recon, _ = model(imgs)  # your model returns (recon, z)
+            loss = criterion(recon, imgs)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * imgs.size(0)
+
+        train_loss = running_loss / len(train_dataloader.dataset)
+
+        # --- Evaluation phase ---
+        model.eval()
+        test_loss = 0.0
+        with torch.no_grad():
+            for imgs in tqdm(test_dataloader, desc=f"Test Epoch {epoch+1}/{n_epochs}"):
+                imgs = imgs.to(device)
+                recon, _ = model(imgs)
+                loss = criterion(recon, imgs)
+                test_loss += loss.item() * imgs.size(0)
+
+        test_loss = test_loss / len(test_dataloader.dataset)
+
+        # --- Logging ---
+        print(f"Epoch [{epoch+1}/{n_epochs}] "
+            f"Train Loss: {train_loss:.6f} | Test Loss: {test_loss:.6f}")
+        
+    save_path = os.path.join(model_save_dir, "conv_autoencoder.pth")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    torch.save(model.state_dict(), save_path)
+    
+    print("saved conv autoencoder at: ", save_path)
+    
+    
+    
+    
+def trainConvVAE(train_dataloader, test_dataloader, model_save_dir, beta=1.0):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = model_classes.ConvVAE(latent_dim=128).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    print("Training Conv VAE")
+    print("Model ready on", device)
+
+    n_epochs = 2
+    for epoch in range(n_epochs):
+        # --- Training phase ---
+        model.train()
+        running_loss = 0.0
+        for imgs in tqdm(train_dataloader, desc=f"Train Epoch {epoch+1}/{n_epochs}"):
+            imgs = imgs.to(device)
+            recon, mu, logvar = model(imgs)
+            loss = model_classes.vae_loss(recon, imgs, mu, logvar, beta=beta)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * imgs.size(0)
+
+        train_loss = running_loss / len(train_dataloader.dataset)
+
+        # --- Evaluation phase ---
+        model.eval()
+        test_loss = 0.0
+        with torch.no_grad():
+            for imgs in tqdm(test_dataloader, desc=f"Test Epoch {epoch+1}/{n_epochs}"):
+                imgs = imgs.to(device)
+                recon, mu, logvar = model(imgs)
+                loss = model_classes.vae_loss(recon, imgs, mu, logvar, beta=beta)
+                test_loss += loss.item() * imgs.size(0)
+
+        test_loss = test_loss / len(test_dataloader.dataset)
+
+        # --- Logging ---
+        print(f"Epoch [{epoch+1}/{n_epochs}] "
+              f"Train Loss: {train_loss:.6f} | Test Loss: {test_loss:.6f}")
+
+    save_path = os.path.join(model_save_dir, "conv_variational_autoencoder.pth")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    torch.save(model.state_dict(), save_path)
+
+    print("saved conv VAE at: ", save_path)
