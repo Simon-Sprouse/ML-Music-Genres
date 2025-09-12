@@ -73,3 +73,17 @@ def group_by_song(filenames):
     # Ensure deterministic order by sorting groups by song name
     grouped.sort(key=lambda sublist: os.path.basename(os.path.dirname(sublist[0])))
     return grouped
+
+
+
+def checkFileExists(save_path):
+    """
+    Check if a .pt file exists at the given path and is non-empty.
+    
+    Args:
+        save_path (str): Path to the file.
+    
+    Returns:
+        bool: True if the file exists and has nonzero size, False otherwise.
+    """
+    return os.path.isfile(save_path) and os.path.getsize(save_path) > 0

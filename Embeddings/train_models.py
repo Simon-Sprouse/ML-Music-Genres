@@ -30,7 +30,7 @@ def build_memmap(image_paths, memmap_path, img_size=(128, 128), dtype=np.float32
     mm.flush()
     return memmap_path, (N, D)
 
-def run_incremental_pca(memmap_path, shape, n_components=100, batch_size=64, save_path="pixel_pca.npz"):
+def run_incremental_pca(memmap_path, shape, n_components=128, batch_size=64, save_path="pixel_pca.npz"):
     N, D = shape
     mm = np.memmap(memmap_path, dtype=np.float32, mode='r', shape=(N, D))
 
@@ -58,7 +58,7 @@ def fitPCA(filenames, model_save_dir):
     memmap_path = f"{model_save_dir}/pixel_memmap.dat"
     save_path=f"{model_save_dir}/pixel_pca.npz"
     memmap_path, shape = build_memmap(filenames, memmap_path, img_size=(128,128))
-    run_incremental_pca(memmap_path, shape, n_components=50, batch_size=64, save_path=save_path)
+    run_incremental_pca(memmap_path, shape, n_components=128, batch_size=256, save_path=save_path)
     
     
     
@@ -116,8 +116,8 @@ def trainSimpleAE(train_dataloader, test_dataloader, model_save_dir):
     print("Training Simple Autoencoder")
     print("Model ready on", device)
     
-    
-    n_epochs = 2
+    min_loss = float('inf')
+    n_epochs = 20
     for epoch in range(n_epochs):
         # --- Training phase ---
         model.train()
@@ -144,12 +144,17 @@ def trainSimpleAE(train_dataloader, test_dataloader, model_save_dir):
                 recon, _ = model(imgs)
                 loss = criterion(recon, imgs)
                 test_loss += loss.item() * imgs.size(0)
-
         test_loss = test_loss / len(test_dataloader.dataset)
-
+                
         # --- Logging ---
         print(f"Epoch [{epoch+1}/{n_epochs}] "
             f"Train Loss: {train_loss:.6f} | Test Loss: {test_loss:.6f}")
+    
+        
+        if test_loss < min_loss:
+            min_loss = test_loss
+        else:
+            break
         
     save_path = os.path.join(model_save_dir, "autoencoder.pth")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -173,8 +178,8 @@ def trainConvAE(train_dataloader, test_dataloader, model_save_dir):
     print("Training Conv Autoencoder")
     print("Model ready on", device)
     
-    
-    n_epochs = 2
+    min_loss = float('inf')
+    n_epochs = 20
     for epoch in range(n_epochs):
         # --- Training phase ---
         model.train()
@@ -203,10 +208,19 @@ def trainConvAE(train_dataloader, test_dataloader, model_save_dir):
                 test_loss += loss.item() * imgs.size(0)
 
         test_loss = test_loss / len(test_dataloader.dataset)
+        
+        
 
         # --- Logging ---
         print(f"Epoch [{epoch+1}/{n_epochs}] "
             f"Train Loss: {train_loss:.6f} | Test Loss: {test_loss:.6f}")
+        
+        
+        test_loss = test_loss / len(test_dataloader.dataset)
+        if test_loss < min_loss:
+            min_loss = test_loss
+        else:
+            break
         
     save_path = os.path.join(model_save_dir, "conv_autoencoder.pth")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -226,7 +240,8 @@ def trainConvVAE(train_dataloader, test_dataloader, model_save_dir, beta=1.0):
     print("Training Conv VAE")
     print("Model ready on", device)
 
-    n_epochs = 2
+    min_loss = float("inf")
+    n_epochs = 20
     for epoch in range(n_epochs):
         # --- Training phase ---
         model.train()
@@ -259,6 +274,12 @@ def trainConvVAE(train_dataloader, test_dataloader, model_save_dir, beta=1.0):
         # --- Logging ---
         print(f"Epoch [{epoch+1}/{n_epochs}] "
               f"Train Loss: {train_loss:.6f} | Test Loss: {test_loss:.6f}")
+        
+        test_loss = test_loss / len(test_dataloader.dataset)
+        if test_loss < min_loss:
+            min_loss = test_loss
+        else:
+            break
 
     save_path = os.path.join(model_save_dir, "conv_variational_autoencoder.pth")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)

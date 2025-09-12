@@ -135,6 +135,11 @@ if __name__ == "__main__":
         
         
         song_name = os.path.basename(os.path.dirname(batch_filenames[0]))
+        save_path = os.path.join(embeddings_save_dir, f"{song_name}.pt")
+        
+        if system_io.checkFileExists(save_path):
+            print('skipping existing file: ', save_path)
+            continue
         
         # Run models
         pca_tensor = run_models.runPCA(batch_filenames, components, mean, n_components)
@@ -154,6 +159,6 @@ if __name__ == "__main__":
             batch_outputs[model_name] = tensor
 
         # Save one .pt file per batch
-        save_path = os.path.join(embeddings_save_dir, f"{song_name}.pt")
+        
         torch.save(batch_outputs, save_path)
         print(f"Saved batch {i} to {save_path}")
