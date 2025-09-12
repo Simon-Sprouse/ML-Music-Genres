@@ -5,6 +5,10 @@ from PIL import Image
 from tqdm.auto import tqdm
 
 
+from torch import nn
+
+
+
 def runPCA(filenames, components, mean, n_components, img_size=(128,128)):
     H, W = img_size
 
@@ -110,3 +114,84 @@ def runVAE(filenames, model, device=None):
         embeddings = mu.cpu()         # use mean as embedding
     
     return embeddings  # (N, latent_dim)
+
+
+
+
+
+
+
+def runCNN(filenames, cnn_models):
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    # Preprocessing transforms
+    preprocess_224 = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225])
+    ])
+
+    preprocess_299 = transforms.Compose([
+        transforms.Resize(320),
+        transforms.CenterCrop(299),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225])
+    ])
+    
+    imgs_224 = [preprocess_224(Image.open(f).convert("RGB")) for f in filenames]
+    imgs_299 = [preprocess_299(Image.open(f).convert("RGB")) for f in filenames]
+
+    batch_224 = torch.stack(imgs_224).to(device)  # [B, 3, 224, 224]
+    batch_299 = torch.stack(imgs_299).to(device)  # [B, 3, 299, 299]
+
+    embeddings = {}
+
+    # Set models to eval
+    for model in cnn_models.values():
+        model.eval()
+    
+
+    
+    resnet34 = cnn_models["resnet34"]
+    inception = cnn_models["inceptionv3"]
+    squeezenet = cnn_models["squeezenet1.1"]
+    efficientnet = cnn_models["efficientnetv2-s"]
+    mobilenet = cnn_models["mobilenetv3s"]
+    
+
+    with torch.no_grad():
+        # ResNet-34 - Remove final FC layer
+        
+        resnet34_feat = torch.flatten(
+            torch.nn.Sequential(*list(resnet34.children())[:-1])(batch_224), 1
+        )
+        embeddings["resnet34"] = resnet34_feat
+
+        # InceptionV3 - Replace FC layer with Identity
+        original_fc = inception.fc
+        inception.fc = nn.Identity()
+        inception_feat = inception(batch_299)
+        inception.fc = original_fc
+        embeddings["inceptionv3"] = inception_feat
+
+        # SqueezeNet - features + GAP
+        sq_raw = squeezenet.features(batch_224)  # [B, 512, H, W]
+        sq_pooled = torch.nn.functional.adaptive_avg_pool2d(sq_raw, (1, 1))
+        embeddings["squeezenet"] = torch.flatten(sq_pooled, 1)
+
+        # EfficientNetV2-S - forward_features + GAP
+        eff_raw = efficientnet.forward_features(batch_224)
+        eff_pooled = torch.nn.functional.adaptive_avg_pool2d(eff_raw, (1, 1))
+        embeddings["efficientnetv2s"] = torch.flatten(eff_pooled, 1)
+
+        # MobileNetV3-Small - features + GAP
+        mob_raw = mobilenet.features(batch_224)
+        mob_pooled = torch.nn.functional.adaptive_avg_pool2d(mob_raw, (1, 1))
+        embeddings["mobilenetv3_small"] = torch.flatten(mob_pooled, 1)
+
+    return embeddings
+

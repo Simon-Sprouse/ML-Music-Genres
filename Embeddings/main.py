@@ -107,6 +107,11 @@ if __name__ == "__main__":
         
         
         
+    ### load cnn models
+    cnn_models = load_models.load_Cnn_Models()
+    print("Loaded CNN models")
+        
+        
         
     batch_filenames = filenames[:100] ## TODO implement per song batching
 
@@ -125,3 +130,6 @@ if __name__ == "__main__":
     conv_vae_tensor = run_models.runVAE(batch_filenames, conv_vae)
     print("conv vae tensor shape: ", conv_vae_tensor.shape)
     
+    cnn_embeddings = run_models.runCNN(batch_filenames, cnn_models)
+    for model_name, cnn_tensor in cnn_embeddings.items():
+        print(f"{model_name} tensor shape: ", cnn_tensor.shape)
