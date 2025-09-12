@@ -3,6 +3,7 @@ warnings.filterwarnings("ignore")
 
 import time
 import os
+import torch
 from torch.utils.data import DataLoader
 
 import system_io
@@ -123,27 +124,36 @@ if __name__ == "__main__":
     
     batches = system_io.group_by_song(filenames)
     print(f"Generated {len(batches)} batches")
-    batch_filenames = batches[0]
-    print("filenames in batch 0: ", batch_filenames)
-    
-    
-    
+        
 
+    os.makedirs(embeddings_save_dir, exist_ok=True)
 
-    pca_tensor = run_models.runPCA(batch_filenames, components, mean, n_components)
-    print("pca tensor shape: ", pca_tensor.shape)
-    
-    ae_tensor = run_models.runAE(batch_filenames, ae)
-    print("ae tensor shape: ", ae_tensor.shape)
-    
-    
-    conv_ae_tensor = run_models.runAE(batch_filenames, conv_ae)
-    print("conv ae tensor shape: ", conv_ae_tensor.shape)
-    
-    
-    conv_vae_tensor = run_models.runVAE(batch_filenames, conv_vae)
-    print("conv vae tensor shape: ", conv_vae_tensor.shape)
-    
-    cnn_embeddings = run_models.runCNN(batch_filenames, cnn_models)
-    for model_name, cnn_tensor in cnn_embeddings.items():
-        print(f"{model_name} tensor shape: ", cnn_tensor.shape)
+    for i, batch_filenames in enumerate(batches):
+        
+        if len(batch_filenames) < 1:
+            continue
+        
+        
+        song_name = os.path.basename(os.path.dirname(batch_filenames[0]))
+        
+        # Run models
+        pca_tensor = run_models.runPCA(batch_filenames, components, mean, n_components)
+        ae_tensor = run_models.runAE(batch_filenames, ae)
+        conv_ae_tensor = run_models.runAE(batch_filenames, conv_ae)
+        conv_vae_tensor = run_models.runVAE(batch_filenames, conv_vae)
+        cnn_embeddings_dict = run_models.runCNN(batch_filenames, cnn_models)
+
+        # Collect everything into one dictionary
+        batch_outputs = {
+            "pca": pca_tensor,
+            "ae": ae_tensor,
+            "conv_ae": conv_ae_tensor,
+            "conv_vae": conv_vae_tensor,
+        }
+        for model_name, tensor in cnn_embeddings_dict.items():
+            batch_outputs[model_name] = tensor
+
+        # Save one .pt file per batch
+        save_path = os.path.join(embeddings_save_dir, f"{song_name}.pt")
+        torch.save(batch_outputs, save_path)
+        print(f"Saved batch {i} to {save_path}")
