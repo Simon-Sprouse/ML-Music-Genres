@@ -113,7 +113,21 @@ if __name__ == "__main__":
         
         
         
-    batch_filenames = filenames[:100] ## TODO implement per song batching
+    
+    
+    
+
+
+
+
+    
+    batches = system_io.group_by_song(filenames)
+    print(f"Generated {len(batches)} batches")
+    batch_filenames = batches[0]
+    print("filenames in batch 0: ", batch_filenames)
+    
+    
+    
 
 
     pca_tensor = run_models.runPCA(batch_filenames, components, mean, n_components)

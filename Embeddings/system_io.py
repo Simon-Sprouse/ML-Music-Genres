@@ -50,3 +50,26 @@ def getTrainTestSplit(filenames, test_split=0.2, seed=42):
     return train_files, test_files
 
 
+
+import os
+from itertools import groupby
+
+def group_by_song(filenames):
+    """
+    Group a flat list of filenames (from getFilenames) into sublists,
+    one per song directory. Ensures deterministic ordering by song name.
+    
+    Args:
+        filenames (list[str]): Flat list of file paths from getFilenames.
+    
+    Returns:
+        list[list[str]]: Sublists of file paths, one per song.
+    """
+    # groupby requires sorted input; getFilenames already ensures this
+    grouped = []
+    for song_name, group in groupby(filenames, key=lambda f: os.path.basename(os.path.dirname(f))):
+        grouped.append(list(group))
+    
+    # Ensure deterministic order by sorting groups by song name
+    grouped.sort(key=lambda sublist: os.path.basename(os.path.dirname(sublist[0])))
+    return grouped
