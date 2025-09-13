@@ -1,0 +1,4 @@
+Here is an open list of features that need to be added / bugs to fix. 
+
+- Add folder structure to pre-process pipeline
+- Tune custom batch norm for usage with cnn embeddings
