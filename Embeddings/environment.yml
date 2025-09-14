@@ -14,5 +14,6 @@ dependencies:
   - matplotlib
   - scikit-learn
   - pip
+  - umap-learn
   - pip:
       - timm
