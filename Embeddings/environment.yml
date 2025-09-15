@@ -15,5 +15,6 @@ dependencies:
   - scikit-learn
   - pip
   - umap-learn
+  - hdbscan
   - pip:
       - timm
